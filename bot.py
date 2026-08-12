@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -19,14 +19,17 @@ active_channels = set(TARGET_CHANNELS)
 forwarding_enabled = True
 
 # Логирование
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # Инициализация
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Названия каналов (автоматически генерируются)
+# Названия каналов
 CHANNEL_NAMES = {}
 for i, channel_id in enumerate(TARGET_CHANNELS, 1):
     if channel_id == -1004316696837:
@@ -36,23 +39,21 @@ for i, channel_id in enumerate(TARGET_CHANNELS, 1):
 
 @dp.message(Command("admin"))
 async def admin_menu(message: types.Message):
-    """Админ меню"""
     if message.from_user.id != ADMIN_ID:
         await message.answer("❌ Доступ запрещён!")
         return
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⚙️ Выбрать каналы", callback_data="select_channels")],
-        [InlineKeyboardButton(text="🔄 Переключить пересылку", callback_data="toggle_forward")],
+        [InlineKeyboardButton(text="🔄 Пересылка", callback_data="toggle_forward")],
         [InlineKeyboardButton(text="ℹ️ Статус", callback_data="status")],
     ])
     
-    status = "🟢 Включена" if forwarding_enabled else "🔴 Отключена"
-    await message.answer(f"📋 Админ панель\\n\\nПересылка: {status}", reply_markup=keyboard)
+    status = "🟢 Вкл" if forwarding_enabled else "🔴 Выкл"
+    await message.answer(f"📋 Админ панель\\nПересылка: {status}", reply_markup=keyboard)
 
-@dp.callback_query(F.data == "select_channels")
+@dp.callback_query(lambda c: c.data == "select_channels")
 async def select_channels_menu(callback: types.CallbackQuery):
-    """Выбор каналов"""
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("❌ Доступ запрещён!")
         return
@@ -66,14 +67,12 @@ async def select_channels_menu(callback: types.CallbackQuery):
         )])
     
     buttons.append([InlineKeyboardButton(text="← Назад", callback_data="admin_menu")])
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await callback.message.edit_text("📺 Выберите каналы для пересылки:", reply_markup=keyboard)
+    await callback.message.edit_text("📺 Выберите каналы:", reply_markup=keyboard)
     await callback.answer()
 
-@dp.callback_query(F.data.startswith("toggle_ch_"))
+@dp.callback_query(lambda c: c.data.startswith("toggle_ch_"))
 async def toggle_channel(callback: types.CallbackQuery):
-    """Переключить канал"""
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("❌ Доступ запрещён!")
         return
@@ -82,12 +81,11 @@ async def toggle_channel(callback: types.CallbackQuery):
     
     if channel_id in active_channels:
         active_channels.remove(channel_id)
-        await callback.answer(f"➖ Канал отключен")
+        await callback.answer("➖ Выключен")
     else:
         active_channels.add(channel_id)
-        await callback.answer(f"➕ Канал включен")
+        await callback.answer("➕ Включен")
     
-    # Обновляем меню
     buttons = []
     for ch_id, name in CHANNEL_NAMES.items():
         status = "✅" if ch_id in active_channels else "⬜"
@@ -97,13 +95,11 @@ async def toggle_channel(callback: types.CallbackQuery):
         )])
     
     buttons.append([InlineKeyboardButton(text="← Назад", callback_data="admin_menu")])
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
     await callback.message.edit_reply_markup(reply_markup=keyboard)
 
-@dp.callback_query(F.data == "toggle_forward")
+@dp.callback_query(lambda c: c.data == "toggle_forward")
 async def toggle_forwarding(callback: types.CallbackQuery):
-    """Переключить пересылку"""
     global forwarding_enabled
     
     if callback.from_user.id != ADMIN_ID:
@@ -111,31 +107,25 @@ async def toggle_forwarding(callback: types.CallbackQuery):
         return
     
     forwarding_enabled = not forwarding_enabled
-    status = "🟢 Включена" if forwarding_enabled else "🔴 Отключена"
-    
+    status = "🟢 Вкл" if forwarding_enabled else "🔴 Выкл"
+    logger.info(f"Пересылка: {status}")
     await callback.answer(f"✅ Пересылка {status}")
-    await callback.message.edit_text(f"📋 Админ панель\\n\\nПересылка: {status}", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+    await callback.message.edit_text(f"📋 Админ панель\\nПересылка: {status}", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⚙️ Выбрать каналы", callback_data="select_channels")],
-        [InlineKeyboardButton(text="🔄 Переключить пересылку", callback_data="toggle_forward")],
+        [InlineKeyboardButton(text="🔄 Пересылка", callback_data="toggle_forward")],
         [InlineKeyboardButton(text="ℹ️ Статус", callback_data="status")],
     ]))
 
-@dp.callback_query(F.data == "status")
+@dp.callback_query(lambda c: c.data == "status")
 async def show_status(callback: types.CallbackQuery):
-    """Показать статус"""
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("❌ Доступ запрещён!")
         return
     
-    forward_status = "🟢 Включена" if forwarding_enabled else "🔴 Отключена"
+    forward_status = "🟢 Вкл" if forwarding_enabled else "🔴 Выкл"
     active_count = len(active_channels)
     
-    status_text = f"""📊 Статус бота
-    
-🔄 Пересылка: {forward_status}
-📺 Активные каналы: {active_count}/{len(CHANNEL_NAMES)}
-
-Каналы:"""
+    status_text = f"📊 Статус\\n🔄 Пересылка: {forward_status}\\n📺 Активно: {active_count}/{len(CHANNEL_NAMES)}\\n\\nКаналы:"
     
     for channel_id, name in CHANNEL_NAMES.items():
         status = "✅" if channel_id in active_channels else "❌"
@@ -146,38 +136,46 @@ async def show_status(callback: types.CallbackQuery):
     ]))
     await callback.answer()
 
-@dp.callback_query(F.data == "admin_menu")
+@dp.callback_query(lambda c: c.data == "admin_menu")
 async def back_to_admin_menu(callback: types.CallbackQuery):
-    """Вернуться в админ меню"""
-    status = "🟢 Включена" if forwarding_enabled else "🔴 Отключена"
-    await callback.message.edit_text(f"📋 Админ панель\\n\\nПересылка: {status}", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+    status = "🟢 Вкл" if forwarding_enabled else "🔴 Выкл"
+    await callback.message.edit_text(f"📋 Админ панель\\nПересылка: {status}", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⚙️ Выбрать каналы", callback_data="select_channels")],
-        [InlineKeyboardButton(text="🔄 Переключить пересылку", callback_data="toggle_forward")],
+        [InlineKeyboardButton(text="🔄 Пересылка", callback_data="toggle_forward")],
         [InlineKeyboardButton(text="ℹ️ Статус", callback_data="status")],
     ]))
     await callback.answer()
 
-@dp.message()
+@dp.channel_post()
 async def forward_message(message: types.Message):
-    """Пересылка сообщений"""
-    # Проверяем источник и статус
-    if message.chat.id != SOURCE_CHANNEL or not forwarding_enabled:
+    """Ловим все сообщения в канале"""
+    logger.info(f"📨 Message in chat {message.chat.id}")
+    
+    if message.chat.id != SOURCE_CHANNEL:
+        logger.info(f"❌ Wrong channel: {message.chat.id} != {SOURCE_CHANNEL}")
         return
     
-    logger.info(f"Входящее сообщение из {message.chat.id}, пересылаем в {len(active_channels)} каналов")
+    if not forwarding_enabled:
+        logger.info("❌ Forwarding disabled")
+        return
+    
+    logger.info(f"✅ Forwarding to {len(active_channels)} channels")
     
     try:
         for channel_id in active_channels:
             await message.copy_to(channel_id)
-            logger.info(f"✅ Сообщение переслано в {channel_id}")
+            logger.info(f"✅ Sent to {channel_id}")
     except Exception as e:
-        logger.error(f"❌ Ошибка пересылки: {e}")
+        logger.error(f"❌ Error: {e}")
 
 async def main():
-    logger.info(f"Бот запущен! Всего каналов: {len(TARGET_CHANNELS)}")
+    logger.info("=== BOT STARTED ===")
+    logger.info(f"Source channel: {SOURCE_CHANNEL}")
+    logger.info(f"Total target channels: {len(TARGET_CHANNELS)}")
     for ch_id, name in CHANNEL_NAMES.items():
         logger.info(f"  {name}: {ch_id}")
-    await dp.start_polling(bot)
+    
+    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
 if __name__ == "__main__":
     asyncio.run(main())
