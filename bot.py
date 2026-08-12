@@ -157,18 +157,21 @@ async def back_to_admin_menu(callback: types.CallbackQuery):
     ]))
     await callback.answer()
 
-@dp.message(F.chat.id == SOURCE_CHANNEL)
+@dp.message()
 async def forward_message(message: types.Message):
     """Пересылка сообщений"""
-    if not forwarding_enabled:
+    # Проверяем источник и статус
+    if message.chat.id != SOURCE_CHANNEL or not forwarding_enabled:
         return
+    
+    logger.info(f"Входящее сообщение из {message.chat.id}, пересылаем в {len(active_channels)} каналов")
     
     try:
         for channel_id in active_channels:
             await message.copy_to(channel_id)
-            logger.info(f"Сообщение переслано в {channel_id}")
+            logger.info(f"✅ Сообщение переслано в {channel_id}")
     except Exception as e:
-        logger.error(f"Ошибка пересылки: {e}")
+        logger.error(f"❌ Ошибка пересылки: {e}")
 
 async def main():
     logger.info(f"Бот запущен! Всего каналов: {len(TARGET_CHANNELS)}")
