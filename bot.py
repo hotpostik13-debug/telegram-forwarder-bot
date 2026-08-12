@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -48,7 +48,7 @@ async def admin_menu(message: types.Message):
     status = "🟢 Включена" if forwarding_enabled else "🔴 Отключена"
     await message.answer(f"📋 Админ панель\\n\\nПересылка: {status}", reply_markup=keyboard)
 
-@dp.callback_query(lambda c: c.data == "select_channels")
+@dp.callback_query(F.data == "select_channels")
 async def select_channels_menu(callback: types.CallbackQuery):
     """Выбор каналов"""
     if callback.from_user.id != ADMIN_ID:
@@ -69,7 +69,7 @@ async def select_channels_menu(callback: types.CallbackQuery):
     await callback.message.edit_text("📺 Выберите каналы для пересылки:", reply_markup=keyboard)
     await callback.answer()
 
-@dp.callback_query(lambda c: c.data.startswith("toggle_ch_"))
+@dp.callback_query(F.data.startswith("toggle_ch_"))
 async def toggle_channel(callback: types.CallbackQuery):
     """Переключить канал"""
     if callback.from_user.id != ADMIN_ID:
@@ -99,7 +99,7 @@ async def toggle_channel(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
     await callback.message.edit_reply_markup(reply_markup=keyboard)
 
-@dp.callback_query(lambda c: c.data == "toggle_forward")
+@dp.callback_query(F.data == "toggle_forward")
 async def toggle_forwarding(callback: types.CallbackQuery):
     """Переключить пересылку"""
     global forwarding_enabled
@@ -118,7 +118,7 @@ async def toggle_forwarding(callback: types.CallbackQuery):
         [InlineKeyboardButton(text="ℹ️ Статус", callback_data="status")],
     ]))
 
-@dp.callback_query(lambda c: c.data == "status")
+@dp.callback_query(F.data == "status")
 async def show_status(callback: types.CallbackQuery):
     """Показать статус"""
     if callback.from_user.id != ADMIN_ID:
@@ -144,7 +144,7 @@ async def show_status(callback: types.CallbackQuery):
     ]))
     await callback.answer()
 
-@dp.callback_query(lambda c: c.data == "admin_menu")
+@dp.callback_query(F.data == "admin_menu")
 async def back_to_admin_menu(callback: types.CallbackQuery):
     """Вернуться в админ меню"""
     status = "🟢 Включена" if forwarding_enabled else "🔴 Отключена"
@@ -155,19 +155,21 @@ async def back_to_admin_menu(callback: types.CallbackQuery):
     ]))
     await callback.answer()
 
-@dp.message_handler(content_types=["any"], exclude_user_ids=[ADMIN_ID])
+@dp.message(F.chat.id == SOURCE_CHANNEL)
 async def forward_message(message: types.Message):
     """Пересылка сообщений"""
-    if not forwarding_enabled or message.chat.id != SOURCE_CHANNEL:
+    if not forwarding_enabled:
         return
     
     try:
         for channel_id in active_channels:
             await message.copy_to(channel_id)
+            logger.info(f"Сообщение переслано в {channel_id}")
     except Exception as e:
         logger.error(f"Ошибка пересылки: {e}")
 
 async def main():
+    logger.info("Бот запущен!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
