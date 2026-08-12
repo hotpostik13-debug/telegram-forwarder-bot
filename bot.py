@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -7,8 +8,11 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 # Настройки
 BOT_TOKEN = "8839010775:AAF1UnUqmDxJCgcg8NdWT55xQ9xdRDCjAYE"
 SOURCE_CHANNEL = -1004298123113
-TARGET_CHANNELS = [-1003926649756, -1003957721628, -1003744353491, -1004316696837, -1003991682451, -1003733040625]
 ADMIN_ID = 918395366
+
+# Читаем каналы из переменной окружения
+target_channels_str = os.getenv("TARGET_CHANNELS", "")
+TARGET_CHANNELS = [int(ch.strip()) for ch in target_channels_str.split(",") if ch.strip()]
 
 # Состояние
 active_channels = set(TARGET_CHANNELS)
@@ -22,16 +26,13 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Дефолтные каналы для отображения
-CHANNEL_NAMES = {
-    -1004316696837: "ARPOZAN",
-    -1003926649756: "Канал 1",
-    -1003957721628: "Канал 2",
-    -1003744353491: "Канал 3",
-    -1004316696837: "Канал 4",
-    -1003991682451: "Канал 5",
-    -1003733040625: "Канал 6"
-}
+# Названия каналов (автоматически генерируются)
+CHANNEL_NAMES = {}
+for i, channel_id in enumerate(TARGET_CHANNELS, 1):
+    if channel_id == -1004316696837:
+        CHANNEL_NAMES[channel_id] = "ARPOZAN"
+    else:
+        CHANNEL_NAMES[channel_id] = f"Канал {i}"
 
 @dp.message(Command("admin"))
 async def admin_menu(message: types.Message):
@@ -170,7 +171,9 @@ async def forward_message(message: types.Message):
         logger.error(f"Ошибка пересылки: {e}")
 
 async def main():
-    logger.info("Бот запущен!")
+    logger.info(f"Бот запущен! Всего каналов: {len(TARGET_CHANNELS)}")
+    for ch_id, name in CHANNEL_NAMES.items():
+        logger.info(f"  {name}: {ch_id}")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
